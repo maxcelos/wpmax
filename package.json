@@ -1,0 +1,40 @@
+{
+  "name": "wpmax",
+  "version": "1.0.0",
+  "description": "Lightning-fast WordPress site scaffolding CLI tool",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "wpmax": "./bin/index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "wordpress",
+    "wp-cli",
+    "scaffold",
+    "cli",
+    "wordpress-cli",
+    "wp-setup",
+    "wordpress-setup",
+    "wordpress-installer"
+  ],
+  "author": "maxcelos",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maxcelos/wpmax.git"
+  },
+  "bugs": {
+    "url": "https://github.com/maxcelos/wpmax/issues"
+  },
+  "homepage": "https://github.com/maxcelos/wpmax#readme",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "execa": "^9.6.0",
+    "inquirer": "^13.0.1",
+    "ora": "^9.0.0"
+  }
+}
