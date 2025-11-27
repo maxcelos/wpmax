@@ -1,29 +1,43 @@
-name: Publish Package
+name: Publish Package to npmjs
 
 on:
   push:
+    # Triggers the workflow when a tag is pushed
+    # E.g., v1.0.0, v0.0.7
     tags:
-      - 'v*'
-
-permissions:
-  id-token: write  # Required for OIDC
-  contents: read
+      - 'v*.*.*'
 
 jobs:
   publish:
+    name: Publish to npmjs
     runs-on: ubuntu-latest
+
+    # Configure permissions for the OIDC token
+    permissions:
+      id-token: write # Required to fetch the OIDC token
+      contents: read  # Allows checkout of the repository
+
     steps:
-      - uses: actions/checkout@v4
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: 🛠️ Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: '20' # Use a stable Node.js version
+          cache: 'npm'       # Caches node modules
 
-      # Ensure npm 11.5.1 or later is installed
-      - name: Update npm
-        run: npm install -g npm@latest
-      - run: npm ci
-      - run: npm run build --if-present
-      - run: npm test
-      - run: npm publish
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔐 Publish to npmjs with Trusted Publisher
+        # This action automatically detects and uses the OIDC token
+        # when a Trusted Publisher is configured on npmjs.com
+        uses: JS-DevTools/npm-publish@v3
+        with:
+          # This is the crucial part: leave the token blank!
+          # The JS-DevTools/npm-publish action will automatically
+          # use the OIDC mechanism if no explicit token is provided.
+          token: ''
+          # Alternatively, you can use the standard `npm publish` command:
+          # run: npm publish
