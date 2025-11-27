@@ -24,7 +24,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/maxcelos/wpmax.git"
+    "url": "git+https://github.com/maxcelos/wpmax.git"
   },
   "bugs": {
     "url": "https://github.com/maxcelos/wpmax/issues"
