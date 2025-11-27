@@ -10,8 +10,21 @@ import { getConfig, setConfig, getConfigValue, addToConfig, removeFromConfig, en
 import { ensureWpCli } from '../src/wp-cli-manager.js';
 import { isHerdInstalled } from '../src/herd-manager.js';
 import { isValidEmail, normalizeUrl, normalizeDbPrefix, isValidDbName } from '../src/validators.js';
+import {
+    getCurrentVersion,
+    getPackageName,
+    checkForUpdate,
+    performUpdate,
+    shouldAutoCheck,
+    updateLastCheckTime,
+    getTimeAgo
+} from '../src/updater.js';
 
 const program = new Command();
+const currentVersion = getCurrentVersion();
+
+// Set version for --version flag
+program.version(currentVersion, '-v, --version', 'Display current version');
 
 // Config command
 program
@@ -118,6 +131,69 @@ program
         }
     });
 
+// Update command
+program
+    .command('update')
+    .description('Check for updates and update wpmax to the latest version')
+    .option('-c, --check', 'Only check for updates without installing')
+    .option('-y, --yes', 'Skip confirmation and update immediately')
+    .action(async (options) => {
+        const spinner = ora();
+        const packageName = getPackageName();
+
+        try {
+            spinner.start('Checking for updates...');
+            const updateInfo = await checkForUpdate();
+            spinner.stop();
+
+            if (!updateInfo.updateAvailable) {
+                console.log(chalk.green(`\n✓ You're running the latest version (${chalk.bold(updateInfo.currentVersion)})\n`));
+                return;
+            }
+
+            // Show update available message
+            console.log(chalk.yellow(`\nUpdate available: ${chalk.dim(updateInfo.currentVersion)} → ${chalk.bold.green(updateInfo.latestVersion)}`));
+            console.log(chalk.dim(`Published ${getTimeAgo(updateInfo.publishedAt)}\n`));
+
+            // If --check flag, just show info and exit
+            if (options.check) {
+                console.log(chalk.cyan('Run "wpmax update" to install the latest version\n'));
+                return;
+            }
+
+            // Prompt for confirmation unless --yes flag
+            let shouldUpdate = options.yes;
+            if (!shouldUpdate) {
+                const answers = await inquirer.prompt([
+                    {
+                        type: 'confirm',
+                        name: 'update',
+                        message: `Update to v${updateInfo.latestVersion}?`,
+                        default: true
+                    }
+                ]);
+                shouldUpdate = answers.update;
+            }
+
+            if (!shouldUpdate) {
+                console.log(chalk.dim('Update cancelled\n'));
+                return;
+            }
+
+            // Perform update
+            spinner.start(`Installing ${packageName}@${updateInfo.latestVersion}...`);
+            await performUpdate(packageName);
+            spinner.stop();
+
+            console.log(chalk.green(`\n✓ Successfully updated to v${updateInfo.latestVersion}!\n`));
+
+        } catch (error) {
+            spinner.stop();
+            console.error(chalk.red(`\nUpdate failed: ${error.message}\n`));
+            process.exit(1);
+        }
+    });
+
 // Main create command
 program
     .name('wpmax')
@@ -145,6 +221,20 @@ program
 
         // 1. Ensure default config is set
         ensureDefaultConfig();
+
+        // 2. Auto-check for updates (once per day, non-blocking)
+        if (shouldAutoCheck()) {
+            try {
+                const updateInfo = await checkForUpdate();
+                updateLastCheckTime();
+
+                if (updateInfo.updateAvailable) {
+                    console.log(chalk.dim(`\n💡 Update available: ${updateInfo.currentVersion} → ${chalk.bold(updateInfo.latestVersion)} (run 'wpmax update')\n`));
+                }
+            } catch (error) {
+                // Silently fail - don't interrupt the user's workflow
+            }
+        }
 
         // 2. Interactive Prompt if name is missing
         let siteName = name;

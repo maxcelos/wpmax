@@ -3,11 +3,11 @@ name: publish
 on:
   push:
     tags:
-      - 'v*'   # push a tag like v0.0.21 to trigger
+      - 'v*'   # trigger on version tags, e.g., v0.0.22
 
 permissions:
-  contents: write
-  id-token: write
+  contents: write   # needed for creating GitHub releases
+  id-token: write   # needed for npm OIDC trusted publishing
 
 jobs:
   publish:
@@ -17,31 +17,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Install pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest        # or a specific version like 9.x
+
+      # Setup Node + registry for trusted publishing
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: '22'
+          node-version: '22'     # or 20, 23
           registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
 
-      - name: Upgrade npm to latest
+      # Upgrade npm (needed for trusted publishing)
+      - name: Upgrade npm (trusted publishing requires npm >= 11.5.1)
         run: npm install -g npm@latest
 
-      - name: Show npm version
-        run: npm -v
+      - name: Show versions
+        run: |
+          node -v
+          npm -v
+          pnpm -v
 
-      - name: Install deps
-        run: npm ci
+      # Install deps via pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
+      # Publish to npm with provenance — fully trusted publishing
       - name: Publish to npm (trusted publishing)
         run: npm publish --access public
 
+      # Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # default token
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}           # e.g. v0.0.21
-          name: Release ${{ github.ref_name }}       # release title
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
