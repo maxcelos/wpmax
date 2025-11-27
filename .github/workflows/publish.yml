@@ -1,4 +1,4 @@
-name: Publish Package to npmjs # This name is not used by OIDC, but good practice
+name: Publish Package to npmjs
 
 on:
   push:
@@ -29,10 +29,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://registry.npmjs.org' # CRITICAL OIDC setting
 
       - name: 📦 Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: 🔐 Publish to npmjs with Trusted Publisher
-        run: pnpm publish --no-git-checks
+        # Now explicitly adding --access public
+        run: pnpm publish --no-git-checks --access public
