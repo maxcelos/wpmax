@@ -3,7 +3,6 @@ name: Publish Package to npmjs
 on:
   push:
     # Triggers the workflow when a tag is pushed
-    # E.g., v1.0.0, v0.0.7
     tags:
       - 'v*.*.*'
 
@@ -14,30 +13,34 @@ jobs:
 
     # Configure permissions for the OIDC token
     permissions:
-      id-token: write # Required to fetch the OIDC token
+      id-token: write # Required for OIDC
       contents: read  # Allows checkout of the repository
 
     steps:
       - name: ⬇️ Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🛠️ Set up Node.js
+      # 1. Setup pnpm - ESSENTIAL for pnpm projects
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10 # Use a recent stable pnpm version
+          run_install: false # We will run the installation in the next step
+
+      # 2. Setup Node.js and configure pnpm caching
+      - name: 🛠️ Set up Node.js and cache
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Use a stable Node.js version
-          cache: 'npm'       # Caches node modules
+          node-version: '20'
+          # Set cache to 'pnpm' so it looks for pnpm-lock.yaml
+          cache: 'pnpm'
 
+      # 3. Install dependencies using pnpm
+      # It's best practice in CI to use --frozen-lockfile
       - name: 📦 Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: 🔐 Publish to npmjs with Trusted Publisher
-        # This action automatically detects and uses the OIDC token
-        # when a Trusted Publisher is configured on npmjs.com
         uses: JS-DevTools/npm-publish@v3
         with:
-          # This is the crucial part: leave the token blank!
-          # The JS-DevTools/npm-publish action will automatically
-          # use the OIDC mechanism if no explicit token is provided.
           token: ''
-          # Alternatively, you can use the standard `npm publish` command:
-          # run: npm publish
