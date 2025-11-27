@@ -1,6 +1,6 @@
 {
   "name": "wpmax",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Lightning-fast WordPress site scaffolding CLI tool",
   "main": "index.js",
   "type": "module",
