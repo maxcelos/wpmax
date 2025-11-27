@@ -1,8 +1,7 @@
-name: Publish Package to npmjs
+name: Publish Package to npmjs # This name is not used by OIDC, but good practice
 
 on:
   push:
-    # Triggers the workflow when a tag is pushed
     tags:
       - 'v*.*.*'
 
@@ -11,36 +10,29 @@ jobs:
     name: Publish to npmjs
     runs-on: ubuntu-latest
 
-    # Configure permissions for the OIDC token
     permissions:
-      id-token: write # Required for OIDC
-      contents: read  # Allows checkout of the repository
+      id-token: write # Required for OIDC token generation
+      contents: read
 
     steps:
       - name: ⬇️ Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Setup pnpm - ESSENTIAL for pnpm projects
       - name: 📦 Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10 # Use a recent stable pnpm version
-          run_install: false # We will run the installation in the next step
+          version: 9
+          run_install: false
 
-      # 2. Set up Node.js and configure pnpm caching
-      - name: 🛠️ Set up Node.js and cache
+      - name: 🛠️ Set up Node.js and configure publishing
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Set cache to 'pnpm' so it looks for pnpm-lock.yaml
           cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
 
-      # 3. Install dependencies using pnpm
-      # It's the best practice in CI to use --frozen-lockfile
       - name: 📦 Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: 🔐 Publish to npmjs with Trusted Publisher
-        uses: JS-DevTools/npm-publish@v3
-        with:
-          token: 'npm_token'
+        run: pnpm publish --no-git-checks
