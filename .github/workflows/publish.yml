@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 permissions:
-  id-token: write # Required for npm Trusted Publishing (provenance)
-  contents: write # Required for creating the GitHub Release
+  id-token: write # REQUIRED: This allows npm publish --provenance to authenticate
+  contents: write # REQUIRED: This allows creating the GitHub Release
 
 jobs:
   publish:
@@ -20,19 +20,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
 
-      # 1. NPM PUBLISH (Fixed for Trusted Publishers)
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. GITHUB RELEASE (Modern Replacement)
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          generate_release_notes: true # Auto-generates changelog
+          generate_release_notes: true
