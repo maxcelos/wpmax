@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 permissions:
-  id-token: write # Required for Provenance/OIDC
-  contents: write # Required for Releases
+  id-token: write
+  contents: write
 
 jobs:
   publish:
@@ -20,14 +20,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Configure npm registry
-        run: npm config set registry https://registry.npmjs.org/
+          registry-url: 'https://registry.npmjs.org'
+          # We use registry-url to create the .npmrc file.
+          # We do NOT pass a token input here.
 
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: "" # Ensure no conflicting token exists
+        # CRITICAL: Do NOT add an 'env' block with NODE_AUTH_TOKEN here.
+        # Leaving it empty allows the OIDC system to take over.
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
