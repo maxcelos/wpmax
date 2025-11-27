@@ -36,4 +36,4 @@ jobs:
 
       - name: 🔐 Publish to npmjs with Trusted Publisher
         # Now explicitly adding --access public
-        run: pnpm publish --no-git-checks --access public
+        run: npm publish --no-git-checks --access public
