@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 permissions:
-  id-token: write # REQUIRED: This allows npm publish --provenance to authenticate
-  contents: write # REQUIRED: This allows creating the GitHub Release
+  id-token: write # Required for Provenance/OIDC
+  contents: write # Required for Releases
 
 jobs:
   publish:
@@ -21,8 +21,13 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Configure npm registry
+        run: npm config set registry https://registry.npmjs.org/
+
       - name: Publish to npm
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: "" # Ensure no conflicting token exists
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
