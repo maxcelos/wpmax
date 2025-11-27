@@ -27,7 +27,7 @@ jobs:
           version: 10 # Use a recent stable pnpm version
           run_install: false # We will run the installation in the next step
 
-      # 2. Setup Node.js and configure pnpm caching
+      # 2. Set up Node.js and configure pnpm caching
       - name: 🛠️ Set up Node.js and cache
         uses: actions/setup-node@v4
         with:
@@ -36,11 +36,11 @@ jobs:
           cache: 'pnpm'
 
       # 3. Install dependencies using pnpm
-      # It's best practice in CI to use --frozen-lockfile
+      # It's the best practice in CI to use --frozen-lockfile
       - name: 📦 Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: 🔐 Publish to npmjs with Trusted Publisher
         uses: JS-DevTools/npm-publish@v3
         with:
-          token: ''
+          token: 'npm_token'
