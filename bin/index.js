@@ -19,6 +19,10 @@ import {
     updateLastCheckTime,
     getTimeAgo
 } from '../src/updater.js';
+import { DoctorCheck } from '../src/doctor.js';
+import { listAllSites, getSite, removeSite } from '../src/site-registry.js';
+import { getFullSiteInfo, getBasicSiteInfo } from '../src/site-info.js';
+import { execa } from 'execa';
 
 const program = new Command();
 const currentVersion = getCurrentVersion();
@@ -194,6 +198,330 @@ program
         }
     });
 
+// Doctor command
+program
+    .command('doctor')
+    .description('Check system requirements and diagnose issues')
+    .action(async () => {
+        const spinner = ora();
+
+        console.log(chalk.bold('\n🔍 Running diagnostics...\n'));
+
+        const doctor = new DoctorCheck();
+
+        // 1. Check WP-CLI
+        spinner.start('Checking WP-CLI...');
+        const wpCliStatus = await doctor.checkWpCli();
+        if (wpCliStatus.ok) {
+            spinner.succeed(chalk.green(`WP-CLI: ${wpCliStatus.version}`));
+        } else {
+            spinner.warn(chalk.yellow(`WP-CLI: ${wpCliStatus.error}`));
+        }
+
+        // 2. Check PHP
+        spinner.start('Checking PHP...');
+        const phpStatus = await doctor.checkPhp();
+        if (phpStatus.ok) {
+            const hasIssues = phpStatus.missingExtensions && phpStatus.missingExtensions.length > 0;
+            if (hasIssues) {
+                spinner.warn(chalk.yellow(`PHP: ${phpStatus.version} (missing extensions)`));
+            } else {
+                spinner.succeed(chalk.green(`PHP: ${phpStatus.version}`));
+            }
+        } else {
+            spinner.fail(chalk.red(`PHP: ${phpStatus.error}`));
+        }
+
+        // 3. Check MySQL
+        spinner.start('Checking MySQL...');
+        const mysqlStatus = await doctor.checkMySQL();
+        if (mysqlStatus.ok) {
+            spinner.succeed(chalk.green(`MySQL: Connected via ${mysqlStatus.connection}`));
+        } else {
+            spinner.fail(chalk.red(`MySQL: ${mysqlStatus.error}`));
+        }
+
+        // 4. Check Herd (optional)
+        spinner.start('Checking Herd...');
+        const herdStatus = await doctor.checkHerd();
+        if (herdStatus.installed) {
+            spinner.succeed(chalk.green(`Herd: Installed${herdStatus.version ? ` (${herdStatus.version})` : ''}`));
+        } else {
+            spinner.info(chalk.dim('Herd: Not installed (optional)'));
+        }
+
+        // 5. Check Permissions
+        spinner.start('Checking permissions...');
+        const permStatus = await doctor.checkPermissions();
+        if (permStatus.ok) {
+            spinner.succeed(chalk.green('Permissions: OK'));
+        } else {
+            spinner.fail(chalk.red(`Permissions: ${permStatus.failedDirs?.length || 0} director${permStatus.failedDirs?.length === 1 ? 'y' : 'ies'} not writable`));
+        }
+
+        // 6. Check Config
+        spinner.start('Checking config...');
+        const configStatus = await doctor.checkConfig();
+        if (configStatus.ok) {
+            if (configStatus.hasSettings) {
+                spinner.succeed(chalk.green('Config: Found with settings'));
+            } else {
+                spinner.info(chalk.dim('Config: Using defaults'));
+            }
+        } else {
+            spinner.warn(chalk.yellow(`Config: ${configStatus.error}`));
+        }
+
+        // Print Environment Info
+        const env = doctor.getEnvironmentInfo();
+        console.log(chalk.bold('\nEnvironment:'));
+        console.log(`  OS: ${env.os} ${env.osVersion}`);
+        console.log(`  Node: ${env.node}`);
+        console.log(`  Arch: ${env.arch}`);
+        console.log(`  Shell: ${env.shell}`);
+        console.log(`  Config: ${env.configPath}`);
+
+        // Print Summary
+        const totalIssues = doctor.issues.length;
+        if (totalIssues === 0) {
+            console.log(chalk.green('\n✅ All checks passed! You\'re ready to create WordPress sites.\n'));
+        } else {
+            console.log(chalk.yellow(`\n⚠ ${totalIssues} issue${totalIssues === 1 ? '' : 's'} found:\n`));
+            doctor.issues.forEach(issue => {
+                console.log(chalk.yellow(`  • ${issue.description}`));
+                if (issue.fix) {
+                    console.log(chalk.dim(`    Fix: ${issue.fix}`));
+                }
+            });
+            console.log('');
+        }
+    });
+
+// List command
+program
+    .command('list')
+    .description('List all WordPress sites created with wpmax')
+    .action(async () => {
+        const sites = listAllSites();
+
+        if (sites.length === 0) {
+            console.log(chalk.yellow('\nNo sites found. Create one with: wpmax <name>\n'));
+            return;
+        }
+
+        console.log(chalk.bold(`\nMy Sites (${sites.length} total):\n`));
+
+        // Get basic info for each site (with directory size)
+        for (const site of sites) {
+            const info = await getBasicSiteInfo(site.name);
+            const exists = info.exists ? '' : chalk.red(' (deleted)');
+            const created = new Date(site.created_at);
+            const timeAgo = getTimeAgo(site.created_at);
+
+            console.log(`  ${chalk.cyan('•')} ${chalk.bold(site.name).padEnd(20)} ${site.url.padEnd(30)} ${timeAgo.padEnd(15)} ${info.directorySize}${exists}`);
+        }
+
+        console.log('');
+    });
+
+// Info command
+program
+    .command('info')
+    .description('Display detailed information about a WordPress site')
+    .argument('[name]', 'Name of the site')
+    .action(async (name) => {
+        let siteName = name;
+
+        // If no name provided, show interactive list
+        if (!siteName) {
+            const sites = listAllSites();
+            if (sites.length === 0) {
+                console.log(chalk.yellow('\nNo sites found. Create one with: wpmax <name>\n'));
+                return;
+            }
+
+            const answers = await inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'site',
+                    message: 'Select a site:',
+                    choices: sites.map(s => ({ name: s.name, value: s.name }))
+                }
+            ]);
+            siteName = answers.site;
+        }
+
+        // Get full site info
+        const spinner = ora('Loading site information...').start();
+        const info = await getFullSiteInfo(siteName);
+        spinner.stop();
+
+        if (!info) {
+            console.log(chalk.red(`\nSite "${siteName}" not found.\n`));
+            return;
+        }
+
+        if (!info.exists) {
+            console.log(chalk.yellow(`\nSite "${siteName}" directory no longer exists.\n`));
+            console.log(chalk.dim('Registry information:'));
+            console.log(`  Path:    ${info.path} ${chalk.red('(deleted)')}`);
+            console.log(`  URL:     ${info.url}`);
+            console.log(`  Created: ${getTimeAgo(info.created_at)}\n`);
+            return;
+        }
+
+        // Display comprehensive info
+        console.log(chalk.bold(`\nSite: ${siteName}`));
+        console.log('─'.repeat(50));
+        console.log(`  Path:         ${info.path}`);
+        console.log(`  URL:          ${chalk.cyan(info.url)}`);
+        console.log(`  Created:      ${getTimeAgo(info.created_at)}`);
+        console.log(`  Size:         ${info.directorySize}`);
+        console.log('');
+        console.log(`  WordPress:    ${info.wpVersion}`);
+        console.log(`  PHP:          ${info.phpVersion}`);
+        console.log(`  Database:     ${info.dbName} (${info.dbInfo.tableCount} tables, ${info.dbInfo.size})`);
+        console.log('');
+        console.log(`  Admin:        ${info.adminUser}`);
+        console.log(`  Email:        ${info.adminEmail}`);
+        console.log('');
+
+        if (info.plugins && info.plugins.length > 0) {
+            console.log(`  Plugins:      ${info.plugins.length} active`);
+            info.plugins.forEach(plugin => {
+                console.log(`    ${chalk.dim('•')} ${plugin}`);
+            });
+        } else {
+            console.log(`  Plugins:      None active`);
+        }
+
+        console.log('');
+        console.log(`  Theme:        ${info.theme}`);
+        console.log('');
+    });
+
+// Delete command
+program
+    .command('delete')
+    .description('Delete a WordPress site (directory, database, and registry)')
+    .argument('[name]', 'Name of the site to delete')
+    .option('--yes', 'Skip confirmation prompt')
+    .option('--keep-db', 'Keep the database')
+    .option('--keep-files', 'Keep the directory')
+    .option('--dry-run', 'Show what would be deleted without actually deleting')
+    .action(async (name, options) => {
+        let siteName = name;
+
+        // If no name provided, show interactive list
+        if (!siteName) {
+            const sites = listAllSites();
+            if (sites.length === 0) {
+                console.log(chalk.yellow('\nNo sites found.\n'));
+                return;
+            }
+
+            const answers = await inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'site',
+                    message: 'Select a site to delete:',
+                    choices: sites.map(s => ({ name: s.name, value: s.name }))
+                }
+            ]);
+            siteName = answers.site;
+        }
+
+        // Get site info
+        const site = getSite(siteName);
+        if (!site) {
+            console.log(chalk.red(`\nSite "${siteName}" not found in registry.\n`));
+            return;
+        }
+
+        // Check what exists
+        const dirExists = fs.existsSync(site.path);
+        const info = dirExists ? await getBasicSiteInfo(siteName) : null;
+
+        // Show what will be deleted
+        console.log(chalk.bold(`\nAbout to delete: ${siteName}\n`));
+        console.log('The following will be removed:');
+
+        if (dirExists && !options.keepFiles) {
+            console.log(`  ${chalk.cyan('•')} Directory: ${site.path} (${info?.directorySize || 'Unknown'})`);
+        } else if (dirExists && options.keepFiles) {
+            console.log(`  ${chalk.dim('○')} Directory: ${site.path} ${chalk.dim('(keeping)')}`);
+        } else {
+            console.log(`  ${chalk.dim('○')} Directory: ${site.path} ${chalk.yellow('(not found)')}`);
+        }
+
+        if (!options.keepDb) {
+            console.log(`  ${chalk.cyan('•')} Database: ${site.dbName}`);
+        } else {
+            console.log(`  ${chalk.dim('○')} Database: ${site.dbName} ${chalk.dim('(keeping)')}`);
+        }
+
+        console.log(`  ${chalk.cyan('•')} Registry entry`);
+        console.log('');
+
+        // Dry run mode
+        if (options.dryRun) {
+            console.log(chalk.dim('Dry run mode - nothing was deleted.\n'));
+            return;
+        }
+
+        // Confirmation
+        if (!options.yes) {
+            const answers = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'confirm',
+                    message: 'Are you sure?',
+                    default: false
+                }
+            ]);
+
+            if (!answers.confirm) {
+                console.log(chalk.dim('Deletion cancelled.\n'));
+                return;
+            }
+        }
+
+        const spinner = ora();
+
+        try {
+            // Delete directory
+            if (dirExists && !options.keepFiles) {
+                spinner.start('Deleting directory...');
+                await execa('rm', ['-rf', site.path]);
+                spinner.succeed('Directory deleted');
+            }
+
+            // Delete database
+            if (!options.keepDb && dirExists) {
+                spinner.start('Dropping database...');
+                try {
+                    const [phpCmd, wpCliPath] = getWpCliCommand();
+                    await execa(phpCmd, [wpCliPath, 'db', 'drop', '--yes', '--quiet'], { cwd: site.path });
+                    spinner.succeed('Database dropped');
+                } catch (error) {
+                    spinner.warn('Database drop failed (may not exist)');
+                }
+            }
+
+            // Remove from registry
+            spinner.start('Removing from registry...');
+            removeSite(siteName);
+            spinner.succeed('Registry entry removed');
+
+            console.log(chalk.green(`\n✅ Site "${siteName}" deleted successfully.\n`));
+
+        } catch (error) {
+            spinner.fail('Deletion failed');
+            console.error(chalk.red(`\nError: ${error.message}\n`));
+            process.exit(1);
+        }
+    });
+
 // Main create command
 program
     .name('wpmax')
@@ -217,7 +545,12 @@ program
     // Site options
     .option('--url <url>', 'Site URL (default: {slug}.test)')
     .option('--title <title>', 'Site title (default: auto-generated from slug)')
+    // Debug options
+    .option('--verbose', 'Show detailed output and commands being executed', false)
+    .option('--debug', 'Alias for --verbose', false)
     .action(async (name, options) => {
+        // Set verbose mode
+        const verbose = options.verbose || options.debug;
 
         // 1. Ensure default config is set
         ensureDefaultConfig();
@@ -354,6 +687,7 @@ program
                 // Flags
                 useDocker: options.docker,
                 noDb: options.db === false,
+                verbose: verbose,
                 // Plugins
                 selectedLocalPlugins: selectedLocalPlugins,
                 selectedPublicPlugins: selectedPublicPlugins
@@ -364,6 +698,23 @@ program
         }
 
         console.log(`\n🚀  Scaffolding WordPress in ${chalk.bold(config.slug)}...\n`);
+
+        // Show configuration in verbose mode
+        if (verbose) {
+            console.log(chalk.dim('[DEBUG] Configuration:'));
+            console.log(chalk.dim(`  slug: ${config.slug}`));
+            console.log(chalk.dim(`  dbName: ${config.dbName}`));
+            console.log(chalk.dim(`  dbUser: ${config.dbUser}`));
+            console.log(chalk.dim(`  dbHost: ${config.dbHost || 'auto-detect'}`));
+            console.log(chalk.dim(`  dbPrefix: ${config.dbPrefix}`));
+            console.log(chalk.dim(`  url: ${config.url}`));
+            console.log(chalk.dim(`  title: ${config.title}`));
+            console.log(chalk.dim(`  adminUser: ${config.adminUser}`));
+            console.log(chalk.dim(`  adminEmail: ${config.adminEmail}`));
+            console.log(chalk.dim(`  wpVersion: ${config.wpVersion}`));
+            console.log(chalk.dim(`  withContent: ${config.withContent}`));
+            console.log('');
+        }
 
         // 3. Ensure WP-CLI is available
         const spinner = ora();
@@ -424,6 +775,9 @@ program
                     }
                 }
 
+                // Register site in the registry
+                installer.registerSite();
+
                 // Show access information
                 console.log(chalk.green('\n✅  Done! Your WordPress site is ready.\n'));
                 console.log(chalk.bold('Site URL:'));
@@ -450,6 +804,161 @@ program
         } catch (error) {
             spinner.fail('Installation failed');
             console.error(chalk.red(error.message));
+            process.exit(1);
+        }
+    });
+
+// Command aliases
+program
+    .command('new')
+    .description('Alias for main create command (same as wpmax <name>)')
+    .argument('[name]', 'Name of the site (slug)')
+    .allowUnknownOption()
+    .action(async (name) => {
+        // Re-parse with the main command
+        const args = process.argv.slice(2);
+        const index = args.indexOf('new');
+        if (index !== -1) {
+            args.splice(index, 1);
+        }
+        process.argv = [process.argv[0], process.argv[1], ...args];
+        await program.parseAsync(process.argv);
+    });
+
+program
+    .command('ls')
+    .description('Alias for list command')
+    .action(async () => {
+        const sites = listAllSites();
+
+        if (sites.length === 0) {
+            console.log(chalk.yellow('\nNo sites found. Create one with: wpmax <name>\n'));
+            return;
+        }
+
+        console.log(chalk.bold(`\nMy Sites (${sites.length} total):\n`));
+
+        for (const site of sites) {
+            const info = await getBasicSiteInfo(site.name);
+            const exists = info.exists ? '' : chalk.red(' (deleted)');
+            const created = new Date(site.created_at);
+            const timeAgo = getTimeAgo(site.created_at);
+
+            console.log(`  ${chalk.cyan('•')} ${chalk.bold(site.name).padEnd(20)} ${site.url.padEnd(30)} ${timeAgo.padEnd(15)} ${info.directorySize}${exists}`);
+        }
+
+        console.log('');
+    });
+
+program
+    .command('rm')
+    .description('Alias for delete command')
+    .argument('[name]', 'Name of the site to delete')
+    .option('--yes', 'Skip confirmation prompt')
+    .option('--keep-db', 'Keep the database')
+    .option('--keep-files', 'Keep the directory')
+    .option('--dry-run', 'Show what would be deleted without actually deleting')
+    .action(async (name, options) => {
+        let siteName = name;
+
+        if (!siteName) {
+            const sites = listAllSites();
+            if (sites.length === 0) {
+                console.log(chalk.yellow('\nNo sites found.\n'));
+                return;
+            }
+
+            const answers = await inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'site',
+                    message: 'Select a site to delete:',
+                    choices: sites.map(s => ({ name: s.name, value: s.name }))
+                }
+            ]);
+            siteName = answers.site;
+        }
+
+        const site = getSite(siteName);
+        if (!site) {
+            console.log(chalk.red(`\nSite "${siteName}" not found in registry.\n`));
+            return;
+        }
+
+        const dirExists = fs.existsSync(site.path);
+        const info = dirExists ? await getBasicSiteInfo(siteName) : null;
+
+        console.log(chalk.bold(`\nAbout to delete: ${siteName}\n`));
+        console.log('The following will be removed:');
+
+        if (dirExists && !options.keepFiles) {
+            console.log(`  ${chalk.cyan('•')} Directory: ${site.path} (${info?.directorySize || 'Unknown'})`);
+        } else if (dirExists && options.keepFiles) {
+            console.log(`  ${chalk.dim('○')} Directory: ${site.path} ${chalk.dim('(keeping)')}`);
+        } else {
+            console.log(`  ${chalk.dim('○')} Directory: ${site.path} ${chalk.yellow('(not found)')}`);
+        }
+
+        if (!options.keepDb) {
+            console.log(`  ${chalk.cyan('•')} Database: ${site.dbName}`);
+        } else {
+            console.log(`  ${chalk.dim('○')} Database: ${site.dbName} ${chalk.dim('(keeping)')}`);
+        }
+
+        console.log(`  ${chalk.cyan('•')} Registry entry`);
+        console.log('');
+
+        if (options.dryRun) {
+            console.log(chalk.dim('Dry run mode - nothing was deleted.\n'));
+            return;
+        }
+
+        if (!options.yes) {
+            const answers = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'confirm',
+                    message: 'Are you sure?',
+                    default: false
+                }
+            ]);
+
+            if (!answers.confirm) {
+                console.log(chalk.dim('Deletion cancelled.\n'));
+                return;
+            }
+        }
+
+        const spinner = ora();
+
+        try {
+            if (dirExists && !options.keepFiles) {
+                spinner.start('Deleting directory...');
+                await execa('rm', ['-rf', site.path]);
+                spinner.succeed('Directory deleted');
+            }
+
+            if (!options.keepDb && dirExists) {
+                spinner.start('Dropping database...');
+                try {
+                    const { getWpCliCommand } = await import('./src/wp-cli-manager.js');
+                    const [phpCmd, wpCliPath] = getWpCliCommand();
+                    await execa(phpCmd, [wpCliPath, 'db', 'drop', '--yes', '--quiet'], { cwd: site.path });
+                    spinner.succeed('Database dropped');
+                } catch (error) {
+                    spinner.warn('Database drop failed (may not exist)');
+                }
+            }
+
+            spinner.start('Removing from registry...');
+            removeSite(siteName);
+            spinner.succeed('Registry entry removed');
+
+            console.log(chalk.green(`\n✅ Site "${siteName}" deleted successfully.\n`));
+
+        } catch (error) {
+            spinner.fail('Deletion failed');
+            console.error(chalk.red(`\nError: ${error.message}\n`));
             process.exit(1);
         }
     });

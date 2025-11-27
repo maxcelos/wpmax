@@ -45,7 +45,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Run tests before publishing
+      - name: Run tests
+        run: pnpm test
+
       # Publish to npm with provenance — fully trusted publishing
+      # (only runs if tests pass)
       - name: Publish to npm (trusted publishing)
         run: npm publish --access public
 

@@ -6,12 +6,14 @@ import path from 'path';
 import { getWpCliCommand } from './wp-cli-manager.js';
 import { getMySQLConnection } from './mysql-detector.js';
 import { herdLink, herdSecure } from './herd-manager.js';
+import { addSite } from './site-registry.js';
 
 export class WordPressInstaller {
     constructor(config) {
         this.config = config;
         this.cwd = path.join(process.cwd(), config.slug);
         this.wpCliCmd = getWpCliCommand();
+        this.dbHost = null; // Will be set during configureDatabase
     }
 
     async createDirectory() {
@@ -53,6 +55,9 @@ export class WordPressInstaller {
         } else {
             // Auto-detect MySQL connection if not provided
             const mysqlHost = this.config.dbHost || await getMySQLConnection(this.config.dbUser);
+
+            // Store for later use in registerSite
+            this.dbHost = mysqlHost;
 
             const configArgs = [
                 wpCliPath,
@@ -131,5 +136,22 @@ export class WordPressInstaller {
 
         // Run herd secure
         await herdSecure(this.cwd);
+    }
+
+    /**
+     * Register the site in the sites registry
+     */
+    registerSite() {
+        addSite({
+            name: this.config.slug,
+            path: this.cwd,
+            url: this.config.url,
+            created_at: new Date().toISOString(),
+            dbName: this.config.dbName,
+            dbUser: this.config.dbUser,
+            dbHost: this.dbHost || this.config.dbHost || 'localhost',
+            adminUser: this.config.adminUser,
+            adminEmail: this.config.adminEmail
+        });
     }
 }
