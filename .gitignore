@@ -39,3 +39,6 @@ coverage/
 
 # WP-CLI PHAR (downloaded on first run)
 bin/wp-cli.phar
+
+CLAUDE.md
+.ia/

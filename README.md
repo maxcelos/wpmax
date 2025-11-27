@@ -53,6 +53,8 @@ wpmax my-site --wp-version 6.4.2
 # Include default WP themes and plugins
 wpmax my-site --with-content
 ```
+> By "site name" we mean the directory name where the site files will be created. It can contain letters, numbers, dashes, and underscores. Example: "my-site
+> It will also be used as the database name and domain.
 
 ### Database Options
 
@@ -339,7 +341,7 @@ wpmax my-site --dbhost 192.168.1.100
 **Error:** `PHP is not installed or not in PATH`
 
 **Solution:**
-- Install PHP: `brew install php` (macOS) or `apt install php` (Linux)
+- Install PHP: `brew install php` (macOS) or `apt install php` (Linux) or [Laravel Herd](https://herd.laravel.com) (Windows and macOS—Recommended)
 - Verify: `php --version`
 
 ### Permission Denied
@@ -439,19 +441,19 @@ Contributions are welcome! Please:
 
 ## Roadmap
 
-See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for upcoming features:
+Upcoming features:
 
-- Docker Compose support
-- Theme installation
-- WordPress multisite
-- Site templates/presets
-- Batch site creation
-- Health checks & updates
-- Backup & restore
+- [ ] Docker Compose support
+- [ ] Theme installation
+- [ ] WordPress multisite
+- [ ] Site templates/presets
+- [ ] Batch site creation
+- [ ] Health checks & updates
+- [ ] Backup & restore
 
 ## License
 
-MIT © Max Celos
+MIT © Maxcelos
 
 ## Support
 
@@ -474,5 +476,3 @@ MIT © Max Celos
 - ✅ Helpful access information display
 
 ---
-
-Made with ❤️ by Max Celos
