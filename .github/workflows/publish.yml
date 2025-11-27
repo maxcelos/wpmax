@@ -3,11 +3,11 @@ name: publish
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'   # push a tag like v0.0.21 to trigger
 
 permissions:
-  contents: read
-  id-token: write # Required for OIDC / trusted publishing
+  contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -20,18 +20,28 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: '22'                # or 20, 23 – your choice
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      # 👇 This is the missing bit
       - name: Upgrade npm to latest
         run: npm install -g npm@latest
 
-      - name: Check npm version
-        run: npm -v    # should print 11.5.1 or higher
+      - name: Show npm version
+        run: npm -v
 
       - name: Install deps
         run: npm ci
 
       - name: Publish to npm (trusted publishing)
         run: npm publish --access public
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # default token
+        with:
+          tag_name: ${{ github.ref_name }}           # e.g. v0.0.21
+          name: Release ${{ github.ref_name }}       # release title
+          draft: false
+          prerelease: false
+          generate_release_notes: true
