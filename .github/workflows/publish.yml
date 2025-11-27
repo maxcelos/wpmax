@@ -1,17 +1,17 @@
-name: Publish to npm
+name: publish
 
 on:
   push:
     tags:
-      - 'v*' # or whatever you use to trigger a release
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write # Required for OIDC / trusted publishing
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      id-token: write # required for OIDC trusted publishing
 
     steps:
       - name: Checkout
@@ -20,14 +20,18 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: '22.x'              # or 20.x
+          node-version: '22'                # or 20, 23 – your choice
           registry-url: 'https://registry.npmjs.org'
 
-      # (optional) verify npm version, should be 11.5.1+
-      - run: npm -v
+      # 👇 This is the missing bit
+      - name: Upgrade npm to latest
+        run: npm install -g npm@latest
+
+      - name: Check npm version
+        run: npm -v    # should print 11.5.1 or higher
 
       - name: Install deps
         run: npm ci
 
       - name: Publish to npm (trusted publishing)
-        run: npm publish --provenance --access public
+        run: npm publish --access public
