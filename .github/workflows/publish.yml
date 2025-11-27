@@ -11,29 +11,24 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      id-token: write # Required for OIDC token generation
+      id-token: write    # required for OIDC
       contents: read
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-          run_install: false
-
-      - name: 🛠️ Set up Node.js and configure publishing
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org' # CRITICAL OIDC setting
+          registry-url: 'https://registry.npmjs.org'
 
-      - name: 📦 Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: npm ci
 
-      - name: 🔐 Publish to npmjs with Trusted Publisher
-        # Now explicitly adding --access public
-        run: npm publish --no-git-checks --access public
+      - name: Verify OIDC login (optional)
+        run: npm whoami || echo "whoami failed — OIDC not configured"
+
+      - name: Publish to npm (OIDC)
+        run: npm publish --access public --registry https://registry.npmjs.org
