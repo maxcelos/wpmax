@@ -20,19 +20,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-          # We use registry-url to create the .npmrc file.
-          # We do NOT pass a token input here.
+
+      - name: Configure Clean npm Registry
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Publish to npm
         run: npm publish --provenance --access public
-        # CRITICAL: Do NOT add an 'env' block with NODE_AUTH_TOKEN here.
-        # Leaving it empty allows the OIDC system to take over.
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+#      - name: Create GitHub Release
+#        uses: softprops/action-gh-release@v2
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          name: Release ${{ github.ref_name }}
+#          draft: false
+#          prerelease: false
+#          generate_release_notes: true
