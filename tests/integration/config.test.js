@@ -247,6 +247,9 @@ describe('Config Command Integration', () => {
     it('should not overwrite existing config', async () => {
       const fs = await import('fs');
       const existsSyncSpy = vi.spyOn(fs.default, 'existsSync').mockReturnValue(true);
+      const readFileSyncSpy = vi.spyOn(fs.default, 'readFileSync').mockReturnValue(
+        JSON.stringify({ publicPlugins: ['existing-plugin'] })
+      );
       const writeFileSyncSpy = vi.spyOn(fs.default, 'writeFileSync').mockImplementation(() => {});
 
       ensureDefaultConfig();
@@ -254,6 +257,7 @@ describe('Config Command Integration', () => {
       expect(writeFileSyncSpy).not.toHaveBeenCalled();
 
       existsSyncSpy.mockRestore();
+      readFileSyncSpy.mockRestore();
       writeFileSyncSpy.mockRestore();
     });
   });

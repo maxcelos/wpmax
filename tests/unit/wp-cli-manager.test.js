@@ -159,7 +159,7 @@ describe('WP-CLI Manager', () => {
         })
       }));
 
-      // Mock fs.createWriteStream and unlinkSync
+      // Mock fs.createWriteStream, unlinkSync, and chmodSync
       const fsModule = await import('fs');
       const mockWriteStream = {
         close: vi.fn(),
@@ -167,6 +167,7 @@ describe('WP-CLI Manager', () => {
       };
 
       vi.spyOn(fsModule.default, 'createWriteStream').mockReturnValue(mockWriteStream);
+      vi.spyOn(fsModule.default, 'chmodSync').mockImplementation(() => {});
       const unlinkSyncSpy = vi.spyOn(fsModule.default, 'unlinkSync').mockImplementation(() => {});
 
       await expect(ensureWpCli()).rejects.toThrow('Network error');
