@@ -14,6 +14,9 @@ WPMax is a powerful command-line tool that automates WordPress site creation, ma
 - **📦 Self-Contained** - Bundles WP-CLI (downloads on first run)
 - **🔐 Laravel Herd Integration** - Automatic HTTPS setup with Herd
 - **⚙️ Config System** - Save common settings for reuse
+- **📊 Site Management** - List, view info, and delete sites with ease
+- **🏥 Health Checks** - Diagnose system issues before creating sites
+- **🔄 Auto-Updates** - Stay up-to-date with automatic update checks
 
 ## Installation
 
@@ -32,6 +35,9 @@ npm install -g wpmax
 ```bash
 # Create a new WordPress site
 wpmax my-site
+
+# Or use the 'new' alias
+wpmax new my-site
 
 # That's it! Your site is ready at http://my-site.test
 ```
@@ -90,9 +96,150 @@ wpmax my-site \
   --title "My Awesome Site"
 ```
 
+## Commands
+
+WPMax provides several commands for managing your WordPress sites:
+
+### Doctor Command
+
+Check your system requirements and diagnose issues before creating sites:
+
+```bash
+wpmax doctor
+```
+
+This command verifies:
+- WP-CLI installation and version
+- PHP version and required extensions
+- MySQL/MariaDB connectivity
+- Laravel Herd status (if installed)
+- File permissions
+- Configuration file
+
+**Example Output:**
+```
+🔍 Running diagnostics...
+
+✓ WP-CLI: 2.9.0
+✓ PHP: 8.2.0
+✓ MySQL: Connected via 127.0.0.1
+✓ Herd: Installed (Herd 1.24.1)
+✓ Permissions: OK
+✓ Config: Found with settings
+
+Environment:
+  OS: darwin 25.1.0
+  Node: v20.10.0
+  Arch: arm64
+  Shell: /bin/zsh
+  Config: ~/.config/wpmax
+
+✅ All checks passed! You're ready to create WordPress sites.
+```
+
+### List Sites
+
+View all WordPress sites created with WPMax:
+
+```bash
+wpmax list
+```
+
+Shows site name, URL, creation date, and disk usage:
+
+```
+My Sites (3 total):
+
+  • my-site              my-site.test                 2 days ago      145 MB
+  • demo-shop            demo-shop.test               1 week ago      289 MB
+  • client-site          client-site.test             3 weeks ago     102 MB
+```
+
+### Site Info
+
+Display detailed information about a specific site:
+
+```bash
+wpmax info [name]
+```
+
+If no name is provided, you'll see an interactive list to choose from.
+
+**Example Output:**
+```
+Site: my-site
+──────────────────────────────────────────────────
+  Path:         /Users/user/Sites/my-site
+  URL:          my-site.test
+  Created:      2 days ago
+  Size:         145 MB
+
+  WordPress:    6.4.2
+  PHP:          8.2.0
+  Database:     my_site (12 tables, 2.3 MB)
+
+  Admin:        admin
+  Email:        admin@test.com
+
+  Plugins:      3 active
+    • woocommerce
+    • yoast-seo
+    • query-monitor
+
+  Theme:        Twenty Twenty-Four
+```
+
+### Delete Site
+
+Completely remove a WordPress site including directory, database, and registry entry:
+
+```bash
+wpmax delete [name]
+```
+
+Without a name, you'll see an interactive list to select from.
+
+**Options:**
+- `--yes` - Skip confirmation prompt
+- `--keep-db` - Keep the database
+- `--keep-files` - Keep the directory
+- `--dry-run` - Preview what would be deleted
+
+**Examples:**
+```bash
+# Interactive deletion with confirmation
+wpmax delete my-site
+
+# Skip confirmation
+wpmax delete my-site --yes
+
+# Only remove files, keep database
+wpmax delete my-site --keep-db
+
+# Preview what would be deleted
+wpmax delete my-site --dry-run
+```
+
+### Update Command
+
+Check for and install the latest version of WPMax:
+
+```bash
+# Check and install updates
+wpmax update
+
+# Only check without installing
+wpmax update --check
+
+# Skip confirmation
+wpmax update --yes
+```
+
+The tool also automatically checks for updates once per day and shows a gentle reminder if one is available.
+
 ## Configuration
 
-WPMax stores configuration in `~/.config/wp-setup/config.json` for reusable settings.
+WPMax stores configuration in `~/.config/wpmax/config.json` and site registry in `~/.config/wpmax/sites.json` for tracking created sites.
 
 ### View Configuration
 
@@ -238,8 +385,63 @@ Site Options:
   --url <url>                  Site URL (default: {slug}.test)
   --title <title>              Site title (default: auto-generated)
 
+Debug Options:
+  --verbose, --debug           Show detailed configuration output
+
 Advanced:
   -d, --docker                 Use Docker (coming soon)
+```
+
+### Verbose Mode
+
+Show detailed configuration information during site creation:
+
+```bash
+wpmax my-site --verbose
+
+# Example output:
+🚀  Scaffolding WordPress in my-site...
+
+[DEBUG] Configuration:
+  slug: my-site
+  dbName: my_site
+  dbUser: root
+  dbHost: auto-detect
+  dbPrefix: wp_
+  url: my-site.test
+  title: My Site
+  adminUser: admin
+  adminEmail: admin@test.com
+  wpVersion: latest
+  withContent: false
+```
+
+Use `--verbose` or `--debug` (alias) for troubleshooting or to verify your configuration before installation.
+
+### Command Aliases
+
+WPMax supports convenient aliases for common commands:
+
+```bash
+# Creating sites
+wpmax my-site        # Standard command
+wpmax new my-site    # Alias for create
+
+# Listing sites
+wpmax list           # Standard command
+wpmax ls             # Alias for list
+
+# Deleting sites
+wpmax delete my-site # Standard command
+wpmax rm my-site     # Alias for delete
+```
+
+All aliases support the same options as their standard counterparts:
+
+```bash
+# These are equivalent:
+wpmax rm my-site --yes
+wpmax delete my-site --yes
 ```
 
 ## Examples
@@ -441,15 +643,19 @@ Contributions are welcome! Please:
 
 ## Roadmap
 
-Upcoming features:
+Completed features:
+- [x] Site registry and management (`list`, `info`, `delete`)
+- [x] Health checks and diagnostics (`doctor`)
+- [x] Auto-update checking and installation (`update`)
 
+Upcoming features:
 - [ ] Docker Compose support
 - [ ] Theme installation
 - [ ] WordPress multisite
 - [ ] Site templates/presets
 - [ ] Batch site creation
-- [ ] Health checks & updates
 - [ ] Backup & restore
+- [ ] Site cloning
 
 ## License
 
