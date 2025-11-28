@@ -11,8 +11,24 @@ import {
 import { setConfig, getConfig } from '../../src/config.js';
 import { mockFilesystem } from '../helpers/mock-filesystem.js';
 import { createExecaResponse } from '../helpers/mock-execa.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import path from 'path';
 import os from 'os';
+
+// Read current version from package.json
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const packageJson = JSON.parse(readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+const CURRENT_VERSION = packageJson.version;
+
+// Helper to bump version for testing
+function bumpVersion(version, type = 'patch') {
+  const [major, minor, patch] = version.split('.').map(Number);
+  if (type === 'major') return `${major + 1}.0.0`;
+  if (type === 'minor') return `${major}.${minor + 1}.0`;
+  if (type === 'patch') return `${major}.${minor}.${patch + 1}`;
+  return version;
+}
 
 // Mock modules
 vi.mock('execa', () => ({
@@ -56,21 +72,19 @@ describe('Update Command Integration', () => {
     });
 
     it('should check for updates and find none', async () => {
-      const currentVersion = '0.1.0'; // Assuming we're on 0.1.0
-
       global.fetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          'dist-tags': { latest: currentVersion },
-          time: { [currentVersion]: '2024-01-01T10:00:00.000Z' }
+          'dist-tags': { latest: CURRENT_VERSION },
+          time: { [CURRENT_VERSION]: '2024-01-01T10:00:00.000Z' }
         })
       });
 
       const updateInfo = await checkForUpdate();
 
       expect(updateInfo.updateAvailable).toBe(false);
-      expect(updateInfo.currentVersion).toBe(currentVersion);
-      expect(updateInfo.latestVersion).toBe(currentVersion);
+      expect(updateInfo.currentVersion).toBe(CURRENT_VERSION);
+      expect(updateInfo.latestVersion).toBe(CURRENT_VERSION);
     });
 
     it('should handle registry timeout', async () => {
@@ -384,11 +398,13 @@ describe('Update Command Integration', () => {
 
   describe('version comparison', () => {
     it('should detect major version update', async () => {
+      const nextMajor = bumpVersion(CURRENT_VERSION, 'major');
+
       global.fetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          'dist-tags': { latest: '2.0.0' },
-          time: { '2.0.0': '2024-01-15T10:00:00.000Z' }
+          'dist-tags': { latest: nextMajor },
+          time: { [nextMajor]: '2024-01-15T10:00:00.000Z' }
         })
       });
 
@@ -398,11 +414,13 @@ describe('Update Command Integration', () => {
     });
 
     it('should detect minor version update', async () => {
+      const nextMinor = bumpVersion(CURRENT_VERSION, 'minor');
+
       global.fetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          'dist-tags': { latest: '0.2.0' },
-          time: { '0.2.0': '2024-01-15T10:00:00.000Z' }
+          'dist-tags': { latest: nextMinor },
+          time: { [nextMinor]: '2024-01-15T10:00:00.000Z' }
         })
       });
 
@@ -412,11 +430,13 @@ describe('Update Command Integration', () => {
     });
 
     it('should detect patch version update', async () => {
+      const nextPatch = bumpVersion(CURRENT_VERSION, 'patch');
+
       global.fetch.mockResolvedValue({
         ok: true,
         json: async () => ({
-          'dist-tags': { latest: '0.1.1' },
-          time: { '0.1.1': '2024-01-15T10:00:00.000Z' }
+          'dist-tags': { latest: nextPatch },
+          time: { [nextPatch]: '2024-01-15T10:00:00.000Z' }
         })
       });
 
