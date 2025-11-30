@@ -220,6 +220,158 @@ wpmax delete my-site --keep-db
 wpmax delete my-site --dry-run
 ```
 
+### Register Existing Site
+
+Add an existing WordPress site to the WPMax registry. This allows you to manage sites not originally created with WPMax.
+
+```bash
+wpmax register [path]
+```
+
+**Options:**
+- `-n, --name <name>` - Custom name for the site (default: directory name)
+
+**Examples:**
+```bash
+# Register current directory
+cd /path/to/existing-wordpress
+wpmax register
+
+# Register with a specific path
+wpmax register /path/to/wordpress-site
+
+# Register with custom name
+wpmax register /path/to/site --name my-custom-name
+
+# From current directory with custom name
+wpmax register --name my-site
+```
+
+**What it does:**
+1. Validates the directory contains a WordPress installation
+2. Parses `wp-config.php` for database configuration
+3. Queries WordPress database for site URL and admin info
+4. Shows detected information for review
+5. Registers the site after confirmation
+
+**Example Output:**
+```
+Detected Information:
+
+  Name:       my-existing-site
+  Path:       /Users/user/Sites/my-existing-site
+  URL:        example.local
+  Database:   wp_database
+  DB User:    root
+  DB Host:    localhost
+  Admin:      admin
+  Email:      admin@example.com
+
+? Register this site? Yes
+
+✅ Site "my-existing-site" registered successfully!
+
+You can now use wpmax commands with this site.
+```
+
+Once registered, the site appears in `wpmax list` and works with all WPMax commands.
+
+### User Management
+
+Manage WordPress users from the command line. These commands work in any WordPress directory (wpmax-created or existing).
+
+#### Add User
+
+Create a new WordPress user. Run this command from within a WordPress site directory.
+
+```bash
+wpmax user add <username> [options]
+```
+
+**Options:**
+- `-e, --email <email>` - Email address (default: `<username>@test.com`)
+- `-p, --password <password>` - Password (default: `admin`)
+- `-r, --role <role>` - User role (default: `administrator`)
+
+**Examples:**
+```bash
+# Navigate to your WordPress site
+cd /path/to/wordpress-site
+
+# Create user with defaults
+wpmax user add john
+# Creates: john / john@test.com / admin / administrator
+
+# Create user with custom email and password
+wpmax user add sarah -e sarah@example.com -p SecurePass123
+
+# Create editor user
+wpmax user add editor1 -r editor -p editor123
+
+# Create subscriber
+wpmax user add subscriber1 -r subscriber
+```
+
+**Available Roles:**
+- `administrator` - Full access (default)
+- `editor` - Publish and manage posts
+- `author` - Publish own posts
+- `contributor` - Write posts (pending review)
+- `subscriber` - Read-only access
+
+**Example Output:**
+```
+✅ User created successfully!
+
+User Details:
+  Username: sarah
+  Email:    sarah@example.com
+  Password: SecurePass123
+  Role:     administrator
+```
+
+If the user already exists, you'll see:
+```
+User "john" already exists.
+```
+
+#### Change Password
+
+Update a WordPress user's password. Run this command from within a WordPress site directory.
+
+```bash
+wpmax user password <username> [password]
+```
+
+**Examples:**
+```bash
+# Navigate to your WordPress site
+cd /path/to/wordpress-site
+
+# Reset to default password (admin)
+wpmax user password john
+
+# Set custom password
+wpmax user password john NewSecurePass456
+
+# Reset admin password
+wpmax user password admin
+```
+
+**Example Output:**
+```
+✅ Password updated successfully!
+
+User Details:
+  Username: john
+  Password: NewSecurePass456
+```
+
+**Important Notes:**
+- Both user commands must be run from within a WordPress site directory
+- Works with any WordPress installation (not just wpmax-created sites)
+- If not in a WordPress directory, you'll see: `Not in a WordPress site directory`
+
 ### Update Command
 
 Check for and install the latest version of WPMax:

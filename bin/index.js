@@ -20,9 +20,10 @@ import {
     getTimeAgo
 } from '../src/updater.js';
 import { DoctorCheck } from '../src/doctor.js';
-import { listAllSites, getSite, removeSite, getCurrentSite } from '../src/site-registry.js';
+import { listAllSites, getSite, removeSite, getCurrentSite, addSite, siteExists } from '../src/site-registry.js';
 import { getFullSiteInfo, getBasicSiteInfo } from '../src/site-info.js';
 import { userExists, createUser, updateUserPassword } from '../src/user-manager.js';
+import { parseWpConfig, getWpSiteInfo } from '../src/wp-config-parser.js';
 import { execa } from 'execa';
 
 const program = new Command();
@@ -958,6 +959,114 @@ program
 
         } catch (error) {
             spinner.fail('Deletion failed');
+            console.error(chalk.red(`\nError: ${error.message}\n`));
+            process.exit(1);
+        }
+    });
+
+// Register command
+program
+    .command('register')
+    .description('Register an existing WordPress site to wpmax registry')
+    .argument('[path]', 'Path to WordPress installation (default: current directory)')
+    .option('-n, --name <name>', 'Custom name for the site (default: directory name)')
+    .action(async (sitePath, options) => {
+        const spinner = ora();
+
+        try {
+            // Determine the site path
+            const targetPath = sitePath ? path.resolve(sitePath) : process.cwd();
+
+            // Check if directory exists
+            if (!fs.existsSync(targetPath)) {
+                console.log(chalk.red(`\nDirectory does not exist: ${targetPath}\n`));
+                process.exit(1);
+            }
+
+            // Check if it's a WordPress directory
+            const wpConfigPath = path.join(targetPath, 'wp-config.php');
+            if (!fs.existsSync(wpConfigPath)) {
+                console.log(chalk.red(`\nNot a WordPress directory (wp-config.php not found): ${targetPath}\n`));
+                process.exit(1);
+            }
+
+            // Determine site name
+            const siteName = options.name || path.basename(targetPath);
+
+            // Check if site already exists in registry
+            if (siteExists(siteName)) {
+                console.log(chalk.yellow(`\nSite "${siteName}" is already registered.\n`));
+                const answers = await inquirer.prompt([
+                    {
+                        type: 'confirm',
+                        name: 'overwrite',
+                        message: 'Do you want to update the existing entry?',
+                        default: false
+                    }
+                ]);
+
+                if (!answers.overwrite) {
+                    console.log(chalk.dim('Registration cancelled.\n'));
+                    return;
+                }
+            }
+
+            // Parse wp-config.php
+            spinner.start('Reading WordPress configuration...');
+            const wpConfig = parseWpConfig(wpConfigPath);
+            spinner.succeed();
+
+            // Get site info from WordPress database
+            spinner.start('Fetching site information...');
+            const siteInfo = await getWpSiteInfo(targetPath);
+            spinner.succeed();
+
+            // Display detected information
+            console.log(chalk.bold('\nDetected Information:\n'));
+            console.log(`  Name:       ${chalk.cyan(siteName)}`);
+            console.log(`  Path:       ${chalk.cyan(targetPath)}`);
+            console.log(`  URL:        ${siteInfo.url ? chalk.cyan(siteInfo.url) : chalk.dim('(not detected)')}`);
+            console.log(`  Database:   ${wpConfig.dbName ? chalk.cyan(wpConfig.dbName) : chalk.dim('(not detected)')}`);
+            console.log(`  DB User:    ${wpConfig.dbUser ? chalk.cyan(wpConfig.dbUser) : chalk.dim('(not detected)')}`);
+            console.log(`  DB Host:    ${wpConfig.dbHost ? chalk.cyan(wpConfig.dbHost) : chalk.dim('(not detected)')}`);
+            console.log(`  Admin:      ${siteInfo.adminUser ? chalk.cyan(siteInfo.adminUser) : chalk.dim('(not detected)')}`);
+            console.log(`  Email:      ${siteInfo.adminEmail ? chalk.cyan(siteInfo.adminEmail) : chalk.dim('(not detected)')}\n`);
+
+            // Confirm registration
+            const confirmAnswers = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'confirm',
+                    message: 'Register this site?',
+                    default: true
+                }
+            ]);
+
+            if (!confirmAnswers.confirm) {
+                console.log(chalk.dim('Registration cancelled.\n'));
+                return;
+            }
+
+            // Register the site
+            spinner.start('Registering site...');
+            addSite({
+                name: siteName,
+                path: targetPath,
+                url: siteInfo.url || siteName,
+                dbName: wpConfig.dbName,
+                dbUser: wpConfig.dbUser,
+                dbHost: wpConfig.dbHost,
+                adminUser: siteInfo.adminUser,
+                adminEmail: siteInfo.adminEmail,
+                created_at: new Date().toISOString()
+            });
+            spinner.succeed();
+
+            console.log(chalk.green(`\n✅ Site "${siteName}" registered successfully!\n`));
+            console.log(chalk.dim('You can now use wpmax commands with this site.\n'));
+
+        } catch (error) {
+            spinner.fail('Registration failed');
             console.error(chalk.red(`\nError: ${error.message}\n`));
             process.exit(1);
         }
