@@ -571,7 +571,7 @@ If you want to keep an existing database, use a different site name.
 
 ## After Installation
 
-After successful installation, you'll see your access information:
+After successful site creation, you'll see your access information:
 
 ```
 ✅  Done! Your WordPress site is ready.
@@ -657,28 +657,15 @@ Upcoming features:
 - [ ] Backup & restore
 - [ ] Site cloning
 
+> PRs welcome!
+
 ## License
 
-MIT © Maxcelos
+MIT
 
 ## Support
 
 - **Issues:** [GitHub Issues](https://github.com/maxcelos/wpmax/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/maxcelos/wpmax/discussions)
-
-## Changelog
-
-### v1.0.0 - Initial Release
-
-- ✅ WordPress site scaffolding
-- ✅ Auto-detect MySQL connection
-- ✅ Bundled WP-CLI (no global install needed)
-- ✅ Plugin management (public + local)
-- ✅ Config system for reusable settings
-- ✅ Laravel Herd integration
-- ✅ Fully configurable via CLI flags
-- ✅ WordPress version selection
-- ✅ Content inclusion option
-- ✅ Helpful access information display
 
 ---
