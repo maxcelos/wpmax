@@ -90,3 +90,54 @@ export function removeSite(siteName) {
 export function getSitesFilePath() {
     return SITES_FILE;
 }
+
+/**
+ * Check if a directory is a WordPress installation
+ * @param {string} dirPath - Directory path to check
+ * @returns {boolean}
+ */
+function isWordPressDirectory(dirPath) {
+    const wpConfigPath = path.join(dirPath, 'wp-config.php');
+    const wpLoadPath = path.join(dirPath, 'wp-load.php');
+    const wpContentPath = path.join(dirPath, 'wp-content');
+
+    return fs.existsSync(wpConfigPath) &&
+           fs.existsSync(wpLoadPath) &&
+           fs.existsSync(wpContentPath);
+}
+
+/**
+ * Get the current site based on the current working directory
+ * Returns the site object if found in registry, or a basic site object for non-wpmax WordPress sites
+ * Returns null if not a WordPress directory
+ */
+export function getCurrentSite() {
+    const cwd = process.cwd();
+    const sites = listAllSites();
+
+    // First, check if current directory matches any site in the registry
+    const registeredSite = sites.find(site => site.path === cwd);
+    if (registeredSite) {
+        return registeredSite;
+    }
+
+    // If not in registry, check if it's a WordPress directory
+    if (isWordPressDirectory(cwd)) {
+        // Return a basic site object for non-wpmax WordPress installations
+        const dirName = path.basename(cwd);
+        return {
+            name: dirName,
+            path: cwd,
+            url: null,
+            created_at: null,
+            dbName: null,
+            dbUser: null,
+            dbHost: null,
+            adminUser: null,
+            adminEmail: null,
+            isExternal: true // Flag to indicate this is not a wpmax-managed site
+        };
+    }
+
+    return null;
+}

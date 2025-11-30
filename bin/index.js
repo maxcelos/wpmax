@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { WordPressInstaller } from '../src/installer.js';
 import { getConfig, setConfig, getConfigValue, addToConfig, removeFromConfig, ensureDefaultConfig } from '../src/config.js';
-import { ensureWpCli } from '../src/wp-cli-manager.js';
+import { ensureWpCli, getWpCliCommand } from '../src/wp-cli-manager.js';
 import { isHerdInstalled } from '../src/herd-manager.js';
 import { isValidEmail, normalizeUrl, normalizeDbPrefix, isValidDbName } from '../src/validators.js';
 import {
@@ -20,8 +20,9 @@ import {
     getTimeAgo
 } from '../src/updater.js';
 import { DoctorCheck } from '../src/doctor.js';
-import { listAllSites, getSite, removeSite } from '../src/site-registry.js';
+import { listAllSites, getSite, removeSite, getCurrentSite } from '../src/site-registry.js';
 import { getFullSiteInfo, getBasicSiteInfo } from '../src/site-info.js';
+import { userExists, createUser, updateUserPassword } from '../src/user-manager.js';
 import { execa } from 'execa';
 
 const program = new Command();
@@ -941,7 +942,6 @@ program
             if (!options.keepDb && dirExists) {
                 spinner.start('Dropping database...');
                 try {
-                    const { getWpCliCommand } = await import('./src/wp-cli-manager.js');
                     const [phpCmd, wpCliPath] = getWpCliCommand();
                     await execa(phpCmd, [wpCliPath, 'db', 'drop', '--yes', '--quiet'], { cwd: site.path });
                     spinner.succeed('Database dropped');
@@ -958,6 +958,129 @@ program
 
         } catch (error) {
             spinner.fail('Deletion failed');
+            console.error(chalk.red(`\nError: ${error.message}\n`));
+            process.exit(1);
+        }
+    });
+
+// User command with subcommands
+const userCommand = program
+    .command('user')
+    .description('Manage WordPress users');
+
+// User add subcommand
+userCommand
+    .command('add')
+    .description('Create a new WordPress user (run from site directory)')
+    .argument('<username>', 'Username for the new user')
+    .option('-e, --email <email>', 'Email address (default: <username>@test.com)')
+    .option('-p, --password <password>', 'Password (default: admin)')
+    .option('-r, --role <role>', 'User role (default: administrator)', 'administrator')
+    .action(async (username, options) => {
+        const spinner = ora();
+
+        try {
+            // Get current site from directory
+            const siteInfo = getCurrentSite();
+            if (!siteInfo) {
+                console.log(chalk.red(`\nNot in a WordPress site directory.\n`));
+                console.log(chalk.dim('Please run this command from a site directory created with wpmax.\n'));
+                process.exit(1);
+            }
+
+            if (!fs.existsSync(siteInfo.path)) {
+                console.log(chalk.red(`\nSite directory does not exist: ${siteInfo.path}\n`));
+                process.exit(1);
+            }
+
+            // Check if user already exists
+            spinner.start('Checking if user exists...');
+            const exists = await userExists(username, siteInfo.path);
+            spinner.stop();
+
+            if (exists) {
+                console.log(chalk.yellow(`\nUser "${username}" already exists.\n`));
+                return;
+            }
+
+            // Set defaults
+            const email = options.email || `${username}@test.com`;
+            const password = options.password || 'admin';
+            const role = options.role;
+
+            // Validate email
+            if (!isValidEmail(email)) {
+                console.log(chalk.red(`\nInvalid email address: ${email}\n`));
+                process.exit(1);
+            }
+
+            // Create user
+            spinner.start('Creating user...');
+            await createUser(username, email, password, siteInfo.path, role);
+            spinner.succeed();
+
+            console.log(chalk.green(`\n✅ User created successfully!\n`));
+            console.log(chalk.bold('User Details:'));
+            console.log(`  Username: ${chalk.cyan(username)}`);
+            console.log(`  Email:    ${chalk.cyan(email)}`);
+            console.log(`  Password: ${chalk.cyan(password)}`);
+            console.log(`  Role:     ${chalk.cyan(role)}\n`);
+
+        } catch (error) {
+            spinner.fail('User creation failed');
+            console.error(chalk.red(`\nError: ${error.message}\n`));
+            process.exit(1);
+        }
+    });
+
+// User password subcommand
+userCommand
+    .command('password')
+    .description('Change a WordPress user password (run from site directory)')
+    .argument('<username>', 'Username to update')
+    .argument('[password]', 'New password (default: admin)')
+    .action(async (username, password) => {
+        const spinner = ora();
+
+        try {
+            // Get current site from directory
+            const siteInfo = getCurrentSite();
+            if (!siteInfo) {
+                console.log(chalk.red(`\nNot in a WordPress site directory.\n`));
+                console.log(chalk.dim('Please run this command from a site directory created with wpmax.\n'));
+                process.exit(1);
+            }
+
+            if (!fs.existsSync(siteInfo.path)) {
+                console.log(chalk.red(`\nSite directory does not exist: ${siteInfo.path}\n`));
+                process.exit(1);
+            }
+
+            // Check if user exists
+            spinner.start('Checking if user exists...');
+            const exists = await userExists(username, siteInfo.path);
+            spinner.stop();
+
+            if (!exists) {
+                console.log(chalk.yellow(`\nUser "${username}" does not exist.\n`));
+                return;
+            }
+
+            // Set default password if not provided
+            const newPassword = password || 'admin';
+
+            // Update password
+            spinner.start('Updating password...');
+            await updateUserPassword(username, newPassword, siteInfo.path);
+            spinner.succeed();
+
+            console.log(chalk.green(`\n✅ Password updated successfully!\n`));
+            console.log(chalk.bold('User Details:'));
+            console.log(`  Username: ${chalk.cyan(username)}`);
+            console.log(`  Password: ${chalk.cyan(newPassword)}\n`);
+
+        } catch (error) {
+            spinner.fail('Password update failed');
             console.error(chalk.red(`\nError: ${error.message}\n`));
             process.exit(1);
         }
