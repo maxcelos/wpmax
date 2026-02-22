@@ -26,6 +26,7 @@ brews:
   - repository:
       owner: maxcelos
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/maxcelos/wpmax
     description: Docker-based WordPress site manager
     license: MIT
