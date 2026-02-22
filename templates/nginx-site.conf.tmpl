@@ -1,0 +1,23 @@
+server {
+    listen 80;
+    server_name {{.Name}}.wpmax.localhost;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{.Name}}.wpmax.localhost;
+
+    ssl_certificate /etc/nginx/certs/wpmax.localhost.pem;
+    ssl_certificate_key /etc/nginx/certs/wpmax.localhost-key.pem;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://{{.Name}}-wordpress:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
