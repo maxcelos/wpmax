@@ -22,14 +22,6 @@ archives:
           - zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
-brews:
-  - repository:
-      owner: maxcelos
-      name: homebrew-tap
-    homepage: https://github.com/maxcelos/wpmax
-    description: Docker-based WordPress site manager
-    license: MIT
-
 checksum:
   name_template: "checksums.txt"
 
