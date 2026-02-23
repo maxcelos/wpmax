@@ -40,7 +40,7 @@ release:
 	NEXT="v$$MAJOR.$$MINOR.$$PATCH"; \
 	echo "$$CURRENT -> $$NEXT"; \
 	read -p "Confirm release $$NEXT? [y/N] " CONFIRM; \
-	[ "$$CONFIRM" = "y" ] || (echo "Aborted" && exit 1); \
+	[ "$$CONFIRM" = "y" ] || { echo "Aborted"; exit 1; }; \
 	git tag -a $$NEXT -m "Release $$NEXT" && \
 	git push origin main --follow-tags && \
 	echo "Released $$NEXT"
